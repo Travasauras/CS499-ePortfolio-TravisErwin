@@ -7,31 +7,31 @@
 ---
 
 <p align="center">
-  <a href="#professional-self-assessment">Self-Assessment</a> |
-  <a href="#software-design-and-engineering">Software Engineering</a> |
-  <a href="#algorithms-and-data-structures">Algorithms & Data Structures</a> |
-  <a href="#databases">Databases</a>
+  <a href="#code-review">Code Review</a> |
+  <a href="#software-design-and-engineering">Software Engineering Enhancement</a> |
+  <a href="#algorithms-and-data-structures-enhancement">Algorithms & Data Structures Enhancement</a> |
+  <a href="#database-enhancement">Databases Enhancment</a> |
+  <a href="#professional-self-assessment">Self-Assessment</a> 
 </p>
+
+---
+
+## Code Review
+
+---
+
+## Software Design and Engineering Enhancement 
+
+---
+
+## Algorithms and Data Structures Enhancement
+
+---
+
+## Database Enhancement
 
 ---
 
 ## Professional Self-Assessment
 
-
-
 ---
-
-## Software Design and Engineering
-
-
-
----
-
-## Algorithms and Data Structures
-
-
-
----
-
-## Databases
-
