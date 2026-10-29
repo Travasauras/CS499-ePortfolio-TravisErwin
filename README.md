@@ -31,6 +31,7 @@ For my CS-499 capstone, I plan to enhance the application's
 software design by adding more features like calorie trackers and a weight loss/gain trend graph.  I will implement algorithms a data sorting algorithm to sort the data and return it as something interpretable by the user, and upgrade the database by adding new tables and expanding the current CRUD operations to support calorie tracking and weight history analysis.
 functionality.
 
+**Original Project:** [Weight Tracker 4000 - CS-360](https://github.com/Travasauras/Weight-Tracking-Android-App-)
 ---
 
 ## Code Review
