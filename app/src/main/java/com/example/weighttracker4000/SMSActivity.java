@@ -25,7 +25,7 @@ public class SMSActivity extends AppCompatActivity {
 
         // Initialize database and retrieve the current user ID
         database = new WeightDatabase(this);
-        userID = getIntent().getIntExtra("USER_ID", -1);
+        userID = getIntent().getIntExtra(MainActivity.EXTRA_USER_ID, -1);
 
         // Connect buttons to the layout
         enableSmsButton = findViewById(R.id.enableSmsButton);
@@ -34,10 +34,10 @@ public class SMSActivity extends AppCompatActivity {
         // Enable SMS alerts using the emulator phone number
         enableSmsButton.setOnClickListener(v -> enableSmsNotifications());
 
-        // Disable SMS alerts and continue to the weight screen
+        // Disable SMS alerts and continue to the main menu
         denySmsButton.setOnClickListener(v -> {
             database.saveNotificationSettings(userID, false);
-            goToWeightScreen();
+            goToMainMenu();
         });
     }
 
@@ -47,10 +47,10 @@ public class SMSActivity extends AppCompatActivity {
         // Save SMS notifications are enabled
         database.saveNotificationSettings(userID, true);
 
-        // If SMS permission is already granted, continue to the weight screen
+        // If SMS permission is already granted, continue to the main menu
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS)
                 == PackageManager.PERMISSION_GRANTED) {
-            goToWeightScreen();
+            goToMainMenu();
         } else {
 
             // Request SMS permission from the user
@@ -75,14 +75,14 @@ public class SMSActivity extends AppCompatActivity {
                 database.saveNotificationSettings(userID, false);
             }
 
-            goToWeightScreen();
+            goToMainMenu();
         }
     }
 
-    // Open the user's weight tracking screen
-    private void goToWeightScreen() {
-        Intent intent = new Intent(SMSActivity.this, WeightActivity.class);
-        intent.putExtra("USER_ID", userID);
+    // Open the main menu and close this screen so Back doesn't return to the SMS question
+    private void goToMainMenu() {
+        Intent intent = new Intent(SMSActivity.this, MainMenuActivity.class);
+        intent.putExtra(MainActivity.EXTRA_USER_ID, userID);
         startActivity(intent);
         finish();
     }

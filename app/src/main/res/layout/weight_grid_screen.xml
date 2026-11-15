@@ -136,7 +136,7 @@
             android:id="@+id/dateInput"
             android:layout_width="match_parent"
             android:layout_height="60dp"
-            android:hint="Date"
+            android:hint="MM/DD/YYYY"
             android:inputType="date"
             android:textSize="18sp" />
 
@@ -155,6 +155,19 @@
             android:layout_marginTop="16dp"
             android:backgroundTint="#4CAF50"
             android:text="Add Weight Entry"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+
+        <!-- Returns to the main menu -->
+        <Button
+            android:id="@+id/mainMenuButton"
+            android:layout_width="match_parent"
+            android:layout_height="70dp"
+            android:layout_marginTop="16dp"
+            android:backgroundTint="#757575"
+            android:text="Main Menu"
             android:textColor="#FFFFFF"
             android:textSize="20sp"
             android:textStyle="bold" />

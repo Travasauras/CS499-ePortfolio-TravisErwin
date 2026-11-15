@@ -19,6 +19,12 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // JitPack hosts MPAndroidChart (used for the Trends graph).
+        // Limited to that one library so nothing else is downloaded from here.
+        maven {
+            url 'https://jitpack.io'
+            content { includeGroup 'com.github.PhilJay' }
+        }
     }
 }
 

@@ -10,6 +10,10 @@ import androidx.appcompat.app.AppCompatActivity;
 
 public class MainActivity extends AppCompatActivity {
 
+    // Key used to pass the logged-in user's ID between screens.
+    // Defined once here so every screen uses the same value.
+    public static final String EXTRA_USER_ID = "USER_ID";
+
     private EditText usernameEditInput;
     private EditText passwordEditInput;
     private Button loginButton;
@@ -53,18 +57,20 @@ public class MainActivity extends AppCompatActivity {
         if (userID != -1) {
 
             // Send new users to the SMS permission screen first
-            // Send returning users directly to the weight tracker screen
+            // Send returning users directly to the Main Menu screen
             Intent intent;
 
             if (database.hasNotificationSettings(userID)) {
-                intent = new Intent(MainActivity.this, WeightActivity.class);
+                intent = new Intent(MainActivity.this, MainMenuActivity.class);
             } else {
                 intent = new Intent(MainActivity.this, SMSActivity.class);
             }
 
-            // Pass the current user ID to the next screen
-            intent.putExtra("USER_ID", userID);
+            // Pass the current user ID to the next screen. Close the login screen so
+            // pressing Back doesn't return to it with the username and password still filled in.
+            intent.putExtra(EXTRA_USER_ID, userID);
             startActivity(intent);
+            finish();
 
         } else {
             // Show an error if the login information is incorrect
@@ -92,8 +98,9 @@ public class MainActivity extends AppCompatActivity {
         } else {
             // Account was created successfully and user is sent to the SMS permission screen
             Intent intent = new Intent(MainActivity.this, SMSActivity.class);
-            intent.putExtra("USER_ID", (int) result);
+            intent.putExtra(EXTRA_USER_ID, (int) result);
             startActivity(intent);
+            finish();
         }
     }
 }

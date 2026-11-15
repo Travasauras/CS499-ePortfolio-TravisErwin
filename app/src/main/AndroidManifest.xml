@@ -20,7 +20,19 @@
         android:theme="@style/Theme.WeightTracker4000" >
 
         <activity
+            android:name=".MainMenuActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".WeightActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".TrendsActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".CalorieActivity"
             android:exported="false" />
 
         <activity

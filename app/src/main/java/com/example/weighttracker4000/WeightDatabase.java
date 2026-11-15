@@ -6,10 +6,14 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class WeightDatabase extends SQLiteOpenHelper {
 
     private static final String DATABASE_NAME = "weight_tracker.db";
-    private static final int DATABASE_VERSION = 2;
+    // Version 3 adds the calories table
+    private static final int DATABASE_VERSION = 3;
 
 
 // set up the database and create the tables
@@ -46,6 +50,14 @@ public class WeightDatabase extends SQLiteOpenHelper {
         private static final String COLUMN_ENABLED = "enabled";
     }
 
+    private static final class CalorieTable {
+        private static final String TABLE_NAME = "calories";
+        private static final String COLUMN_ID = "_id";
+        private static final String COLUMN_USER_ID = "user_id";
+        private static final String COLUMN_DATE = "date";
+        private static final String COLUMN_CALORIES = "calories";
+    }
+
 
     @Override
     public void onCreate(SQLiteDatabase db) {
@@ -74,17 +86,26 @@ public class WeightDatabase extends SQLiteOpenHelper {
                 NotificationTable.COLUMN_ID + " integer primary key autoincrement, " +
                 NotificationTable.COLUMN_USER_ID + " integer not null, " +
                 NotificationTable.COLUMN_ENABLED + " integer not null);");
+
+        createCalorieTable(db);
+    }
+
+    // Create table for calorie entries
+    private void createCalorieTable(SQLiteDatabase db) {
+        db.execSQL("create table " + CalorieTable.TABLE_NAME + " (" +
+                CalorieTable.COLUMN_ID + " integer primary key autoincrement, " +
+                CalorieTable.COLUMN_USER_ID + " integer not null, " +
+                CalorieTable.COLUMN_DATE + " text not null, " +
+                CalorieTable.COLUMN_CALORIES + " integer not null);");
     }
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
 
-        // Recreate all tables when the database version changes
-        db.execSQL("drop table if exists " + UserTable.TABLE_NAME);
-        db.execSQL("drop table if exists " + WeightTable.TABLE_NAME);
-        db.execSQL("drop table if exists " + GoalTable.TABLE_NAME);
-        db.execSQL("drop table if exists " + NotificationTable.TABLE_NAME);
-        onCreate(db);
+        // Only add what is new, so existing users, weights and goals are kept
+        if (oldVersion < 3) {
+            createCalorieTable(db);
+        }
     }
 
     // Add a new user account
@@ -132,15 +153,56 @@ public class WeightDatabase extends SQLiteOpenHelper {
         return db.insert(WeightTable.TABLE_NAME, null, values);
     }
 
-    // Get all weight entries for the current user
-    public Cursor getWeights(int userID) {
+    // Get all weight entries for the current user as a list of WeightEntry objects
+    public List<WeightEntry> getWeights(int userID) {
         SQLiteDatabase db = getReadableDatabase();
 
-        return db.rawQuery(
+        Cursor cursor = db.rawQuery(
                 "SELECT * FROM " + WeightTable.TABLE_NAME +
                         " WHERE " + WeightTable.COLUMN_USER_ID + " = ?",
                 new String[]{String.valueOf(userID)}
         );
+
+        List<WeightEntry> entries = new ArrayList<>();
+
+        while (cursor.moveToNext()) {
+            entries.add(new WeightEntry(
+                    cursor.getInt(cursor.getColumnIndexOrThrow(WeightTable.COLUMN_ID)),
+                    cursor.getString(cursor.getColumnIndexOrThrow(WeightTable.COLUMN_DATE)),
+                    cursor.getDouble(cursor.getColumnIndexOrThrow(WeightTable.COLUMN_WEIGHT))
+            ));
+        }
+
+        cursor.close();
+        return entries;
+    }
+
+    // Get the user's most recent weight by date, or 0 if there are no entries.
+    // Dates are stored as MM/dd/yyyy text, which doesn't sort correctly as text,
+    // so each date is rearranged into yyyyMMdd before sorting.
+    public double getCurrentWeight(int userId) {
+        SQLiteDatabase db = getReadableDatabase();
+
+        Cursor cursor = db.rawQuery(
+                "SELECT " + WeightTable.COLUMN_WEIGHT +
+                        " FROM " + WeightTable.TABLE_NAME +
+                        " WHERE " + WeightTable.COLUMN_USER_ID + " = ?" +
+                        " ORDER BY substr(" + WeightTable.COLUMN_DATE + ", 7, 4) || " +
+                        "substr(" + WeightTable.COLUMN_DATE + ", 1, 2) || " +
+                        "substr(" + WeightTable.COLUMN_DATE + ", 4, 2) DESC, " +
+                        WeightTable.COLUMN_ID + " DESC" +
+                        " LIMIT 1",
+                new String[]{String.valueOf(userId)}
+        );
+
+        double currentWeight = 0;
+
+        if (cursor.moveToFirst()) {
+            currentWeight = cursor.getDouble(0);
+        }
+
+        cursor.close();
+        return currentWeight;
     }
 
     // Update an existing weight entry
@@ -167,6 +229,91 @@ public class WeightDatabase extends SQLiteOpenHelper {
                 WeightTable.TABLE_NAME,
                 WeightTable.COLUMN_ID + " = ?",
                 new String[]{String.valueOf(weightId)}
+        );
+    }
+
+    // Add a new calorie entry for the current user
+    public long addCalories(int userId, String date, int calories) {
+        SQLiteDatabase db = getWritableDatabase();
+
+        ContentValues values = new ContentValues();
+        values.put(CalorieTable.COLUMN_USER_ID, userId);
+        values.put(CalorieTable.COLUMN_DATE, date);
+        values.put(CalorieTable.COLUMN_CALORIES, calories);
+
+        return db.insert(CalorieTable.TABLE_NAME, null, values);
+    }
+
+    // Get all calorie entries for the current user as a list of CalorieEntry objects
+    public List<CalorieEntry> getCalories(int userId) {
+        SQLiteDatabase db = getReadableDatabase();
+
+        Cursor cursor = db.rawQuery(
+                "SELECT * FROM " + CalorieTable.TABLE_NAME +
+                        " WHERE " + CalorieTable.COLUMN_USER_ID + " = ?",
+                new String[]{String.valueOf(userId)}
+        );
+
+        List<CalorieEntry> entries = new ArrayList<>();
+
+        while (cursor.moveToNext()) {
+            entries.add(new CalorieEntry(
+                    cursor.getInt(cursor.getColumnIndexOrThrow(CalorieTable.COLUMN_ID)),
+                    cursor.getString(cursor.getColumnIndexOrThrow(CalorieTable.COLUMN_DATE)),
+                    cursor.getInt(cursor.getColumnIndexOrThrow(CalorieTable.COLUMN_CALORIES))
+            ));
+        }
+
+        cursor.close();
+        return entries;
+    }
+
+    // Get the total calories the user logged on one date
+    public int getTotalCalories(int userId, String date) {
+        SQLiteDatabase db = getReadableDatabase();
+
+        Cursor cursor = db.rawQuery(
+                "SELECT SUM(" + CalorieTable.COLUMN_CALORIES + ")" +
+                        " FROM " + CalorieTable.TABLE_NAME +
+                        " WHERE " + CalorieTable.COLUMN_USER_ID + " = ? AND " +
+                        CalorieTable.COLUMN_DATE + " = ?",
+                new String[]{String.valueOf(userId), date}
+        );
+
+        int total = 0;
+
+        if (cursor.moveToFirst()) {
+            total = cursor.getInt(0);
+        }
+
+        cursor.close();
+        return total;
+    }
+
+    // Update an existing calorie entry
+    public int updateCalories(int calorieId, String date, int calories) {
+        SQLiteDatabase db = getWritableDatabase();
+
+        ContentValues values = new ContentValues();
+        values.put(CalorieTable.COLUMN_DATE, date);
+        values.put(CalorieTable.COLUMN_CALORIES, calories);
+
+        return db.update(
+                CalorieTable.TABLE_NAME,
+                values,
+                CalorieTable.COLUMN_ID + " = ?",
+                new String[]{String.valueOf(calorieId)}
+        );
+    }
+
+    // Delete a selected calorie entry
+    public int deleteCalories(int calorieId) {
+        SQLiteDatabase db = getWritableDatabase();
+
+        return db.delete(
+                CalorieTable.TABLE_NAME,
+                CalorieTable.COLUMN_ID + " = ?",
+                new String[]{String.valueOf(calorieId)}
         );
     }
 
