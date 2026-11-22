@@ -54,6 +54,18 @@
         android:onClick="CreateAccount"
         android:backgroundTint="#4CAF50"/>
 
+    <!-- Creates a "demo" account full of sample data for reviewing the app.
+         Hidden by default; MainActivity shows it in debug builds only. -->
+    <Button
+        android:id="@+id/loadDemoDataButton"
+        android:layout_width="wrap_content"
+        android:layout_height="50dp"
+        android:layout_gravity="center"
+        android:layout_marginTop="8dp"
+        android:backgroundTint="#757575"
+        android:text="Load Demo Data"
+        android:visibility="gone" />
+
     <ImageView
         android:layout_width="300dp"
         android:layout_height="300dp"

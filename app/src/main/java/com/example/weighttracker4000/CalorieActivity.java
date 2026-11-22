@@ -1,5 +1,6 @@
 package com.example.weighttracker4000;
 
+import android.graphics.Color;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.widget.Button;
@@ -11,8 +12,16 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 
 public class CalorieActivity extends AppCompatActivity {
+
+    // Dates in the weekly summary rows, e.g. "Nov 15 – Nov 21, 2026"
+    private static final DateTimeFormatter WEEK_DATE_FORMAT = DateTimeFormatter.ofPattern("MMM d", Locale.US);
+    private static final DateTimeFormatter WEEK_DATE_FORMAT_WITH_YEAR = DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.US);
 
     private int userID;
     private WeightDatabase database;
@@ -23,6 +32,13 @@ public class CalorieActivity extends AppCompatActivity {
     private TextView todayTotalText;
     private LinearLayout calorieGridContainer;
     private int selectedCalorieID = -1;
+
+    // The calorie log's data, loaded by loadCalories() and drawn by showCalorieLog()
+    private List<WeekGrouper.Week<CalorieEntry>> weeks = new ArrayList<>();
+    private List<CalorieEntry> unreadableEntries = new ArrayList<>();
+
+    // The one week whose entries are shown (identified by its starting Sunday), or null if all are closed
+    private LocalDate expandedWeekStart;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -90,58 +106,156 @@ public class CalorieActivity extends AppCompatActivity {
             addCalorieButton.setText("Add Calories");
         }
 
+        // Open the week the saved entry belongs to, so the user can see it in the log
+        expandedWeekStart = WeekGrouper.getWeekStart(dateResult.getValue());
+
         // Clear the calories field and refresh the list
         calorieInput.setText("");
         loadCalories();
     }
 
-    // Load the user's calorie entries and today's total, and display them
+    // Load the user's calorie entries and today's total, group the entries into calendar weeks and show the log
     private void loadCalories() {
-        calorieGridContainer.removeAllViews();
-
         String today = InputValidator.formatDate(LocalDate.now());
         todayTotalText.setText("Today: " + database.getTotalCalories(userID, today) + " calories");
 
-        // Create a row in the grid for each calorie entry
-        for (CalorieEntry entry : database.getCalories(userID)) {
-            int calorieID = entry.getId();
-            String date = entry.getDate();
-            int calories = entry.getCalories();
+        List<CalorieEntry> records = database.getCalories(userID);
 
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
+        // Sort the readable entries and group them by week, newest week first
+        List<CalorieEntry> sorted = WeekGrouper.sortByDate(records, CalorieEntry::getDate);
+        weeks = WeekGrouper.groupByCalendarWeek(sorted, CalorieEntry::getDate);
 
-            // Button to delete the entry
-            Button deleteButton = new Button(this);
-            deleteButton.setText("X");
-            deleteButton.setOnClickListener(v -> {
-                database.deleteCalories(calorieID);
+        // Entries with unreadable dates can't be placed in a week, but are kept so they can be fixed or deleted
+        unreadableEntries = WeekGrouper.findUnreadableDates(records, CalorieEntry::getDate);
 
-                // If the deleted entry was being edited, leave edit mode
-                if (selectedCalorieID == calorieID) {
-                    selectedCalorieID = -1;
-                    addCalorieButton.setText("Add Calories");
-                }
-
-                Toast.makeText(this, "Entry deleted", Toast.LENGTH_SHORT).show();
-                loadCalories();
-            });
-
-            row.addView(makeCell(date));
-            row.addView(makeCell(String.valueOf(calories)));
-            row.addView(deleteButton);
-
-            // Tap a row to load it into the inputs for editing
-            row.setOnClickListener(v -> {
-                selectedCalorieID = calorieID;
-                dateInput.setText(date);
-                calorieInput.setText(String.valueOf(calories));
-                addCalorieButton.setText("Update Entry");
-                Toast.makeText(this, "You can now update this entry.", Toast.LENGTH_SHORT).show();
-            });
-
-            calorieGridContainer.addView(row);
+        // The first time the log is shown, open the newest week
+        if (expandedWeekStart == null && !weeks.isEmpty()) {
+            expandedWeekStart = weeks.get(0).getWeekStart();
         }
+
+        showCalorieLog();
+    }
+
+    // Draw the calorie log: one summary row per week, plus the entry rows of the one open week.
+    // Opening or closing a week only redraws; it does not query the database again.
+    private void showCalorieLog() {
+        calorieGridContainer.removeAllViews();
+
+        for (WeekGrouper.Week<CalorieEntry> week : weeks) {
+            boolean expanded = week.getWeekStart().equals(expandedWeekStart);
+            calorieGridContainer.addView(createWeekHeader(week, expanded));
+
+            if (expanded) {
+                for (CalorieEntry entry : week.getEntries()) {
+                    calorieGridContainer.addView(createEntryRow(entry));
+                }
+            }
+        }
+
+        // Unreadable dates are listed last under their own heading
+        if (!unreadableEntries.isEmpty()) {
+            calorieGridContainer.addView(createHeaderView(
+                    "Unreadable dates (" + unreadableEntries.size() + ")\nTap an entry to fix its date", false));
+            for (CalorieEntry entry : unreadableEntries) {
+                calorieGridContainer.addView(createEntryRow(entry));
+            }
+        }
+
+        if (weeks.isEmpty() && unreadableEntries.isEmpty()) {
+            calorieGridContainer.addView(createHeaderView("No calorie entries yet", false));
+        }
+    }
+
+    // Summary row for one week, e.g. "▼  Nov 15 – Nov 21, 2026" / "18 entries · 12,345 cal · Avg 2,057/day".
+    // Tapping it opens that week (closing the one that was open) or closes it if it is already open.
+    private TextView createWeekHeader(WeekGrouper.Week<CalorieEntry> week, boolean expanded) {
+        List<CalorieEntry> entries = week.getEntries();
+
+        // Total for the week, and the number of different days that have entries.
+        // Entries are sorted by date, so a new day starts wherever the date changes: one O(n) pass.
+        int totalCalories = 0;
+        int daysLogged = 0;
+        String previousDate = null;
+        for (CalorieEntry entry : entries) {
+            totalCalories += entry.getCalories();
+            if (!entry.getDate().equals(previousDate)) {
+                daysLogged++;
+                previousDate = entry.getDate();
+            }
+        }
+
+        String text = String.format(Locale.US, "%s  %s – %s%n%d %s · %,d cal · Avg %,d/day",
+                expanded ? "▼" : "▶",
+                week.getWeekStart().format(WEEK_DATE_FORMAT),
+                week.getWeekEnd().format(WEEK_DATE_FORMAT_WITH_YEAR),
+                entries.size(), entries.size() == 1 ? "entry" : "entries",
+                totalCalories, Math.round((double) totalCalories / daysLogged));
+
+        TextView header = createHeaderView(text, expanded);
+        header.setOnClickListener(v -> {
+            expandedWeekStart = expanded ? null : week.getWeekStart();
+            showCalorieLog();
+        });
+        return header;
+    }
+
+    // Styled heading row used for week summaries and the unreadable-dates section.
+    // The open week is highlighted green so it stands out from the closed ones.
+    private TextView createHeaderView(String text, boolean highlighted) {
+        TextView header = new TextView(this);
+        header.setText(text);
+        header.setTextSize(15);
+        header.setPadding(24, 18, 24, 18);
+        header.setBackgroundColor(Color.parseColor(highlighted ? "#C8E6C9" : "#EEEEEE"));
+
+        // Thin gap between rows so each week reads as its own block
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        params.topMargin = 2;
+        header.setLayoutParams(params);
+        return header;
+    }
+
+    // One row of the log for a single calorie entry: date, calories and a delete button.
+    // Tapping the row loads the entry into the inputs so it can be edited.
+    private LinearLayout createEntryRow(CalorieEntry entry) {
+        int calorieID = entry.getId();
+        String date = entry.getDate();
+        int calories = entry.getCalories();
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+
+        // Button to delete the entry
+        Button deleteButton = new Button(this);
+        deleteButton.setText("X");
+        deleteButton.setOnClickListener(v -> {
+            database.deleteCalories(calorieID);
+
+            // If the deleted entry was being edited, leave edit mode
+            if (selectedCalorieID == calorieID) {
+                selectedCalorieID = -1;
+                addCalorieButton.setText("Add Calories");
+            }
+
+            Toast.makeText(this, "Entry deleted", Toast.LENGTH_SHORT).show();
+            loadCalories();
+        });
+
+        row.addView(makeCell(date));
+        row.addView(makeCell(String.valueOf(calories)));
+        row.addView(deleteButton);
+
+        // Tap a row to load it into the inputs for editing
+        row.setOnClickListener(v -> {
+            selectedCalorieID = calorieID;
+            dateInput.setText(date);
+            calorieInput.setText(String.valueOf(calories));
+            addCalorieButton.setText("Update Entry");
+            Toast.makeText(this, "You can now update this entry.", Toast.LENGTH_SHORT).show();
+        });
+
+        return row;
     }
 
     // Show a validation error on an input field and move the cursor there so the user can fix it

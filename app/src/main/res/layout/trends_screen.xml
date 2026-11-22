@@ -61,12 +61,62 @@
 
         </LinearLayout>
 
+        <!-- Period navigation: step back to older weeks/months/years and forward again.
+             Hidden until an interval is chosen. -->
+        <LinearLayout
+            android:id="@+id/periodNavigation"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:visibility="gone"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp">
+
+            <Button
+                android:id="@+id/previousPeriodButton"
+                android:layout_width="56dp"
+                android:layout_height="50dp"
+                android:backgroundTint="#757575"
+                android:contentDescription="Previous period"
+                android:text="◀"
+                android:textColor="#FFFFFF" />
+
+            <!-- Date range of the period being shown -->
+            <TextView
+                android:id="@+id/periodLabel"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/nextPeriodButton"
+                android:layout_width="56dp"
+                android:layout_height="50dp"
+                android:backgroundTint="#757575"
+                android:contentDescription="Next period"
+                android:text="▶"
+                android:textColor="#FFFFFF" />
+
+        </LinearLayout>
+
         <!-- Weight graph (MPAndroidChart). Shows "No chart data available" until data is added. -->
         <com.github.mikephil.charting.charts.LineChart
             android:id="@+id/trendsChart"
             android:layout_width="match_parent"
             android:layout_height="300dp"
             android:layout_marginTop="16dp" />
+
+        <!-- Summary of the selected interval: average, weight change and trend,
+             or "No weight data available" when there are no records -->
+        <TextView
+            android:id="@+id/trendSummaryText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:textSize="18sp" />
 
         <!-- Returns to the main menu -->
         <Button

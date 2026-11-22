@@ -2,6 +2,8 @@ package com.example.weighttracker4000;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
+import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
@@ -38,6 +40,37 @@ public class MainActivity extends AppCompatActivity {
         // Set button actions for logging in and creating an account
         loginButton.setOnClickListener(v -> loginUser());
         createAccountButton.setOnClickListener(v -> createUser());
+
+        // Debug builds only: a button that creates a "demo" account full of sample data for reviewing
+        // the app. BuildConfig.DEBUG is false in release builds, so the button stays hidden there.
+        if (BuildConfig.DEBUG) {
+            Button loadDemoDataButton = findViewById(R.id.loadDemoDataButton);
+            loadDemoDataButton.setVisibility(View.VISIBLE);
+            loadDemoDataButton.setOnClickListener(v -> loadDemoData(loadDemoDataButton));
+        }
+    }
+
+    // Create (or reset) the demo account, then fill in its username and password so the user can log in
+    private void loadDemoData(Button loadDemoDataButton) {
+        // Show progress on the button itself (a second Toast can't be shown while one is still on screen)
+        loadDemoDataButton.setEnabled(false);
+        loadDemoDataButton.setText("Loading...");
+
+        // Database work runs on a background thread so the screen doesn't freeze while it saves
+        new Thread(() -> {
+            long startTime = System.currentTimeMillis();
+            DemoDataSeeder.seed(database);
+            Log.d("DemoData", "Demo account seeded in " + (System.currentTimeMillis() - startTime) + " ms");
+
+            // Screen changes must happen back on the main (UI) thread
+            runOnUiThread(() -> {
+                usernameEditInput.setText(DemoDataSeeder.DEMO_USERNAME);
+                passwordEditInput.setText(DemoDataSeeder.DEMO_PASSWORD);
+                loadDemoDataButton.setText("Load Demo Data");
+                loadDemoDataButton.setEnabled(true);
+                Toast.makeText(this, "Demo account ready. Tap Login.", Toast.LENGTH_LONG).show();
+            });
+        }).start();
     }
 
     // Validate the user's login information

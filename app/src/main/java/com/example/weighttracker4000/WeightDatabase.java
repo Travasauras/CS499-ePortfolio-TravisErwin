@@ -5,6 +5,7 @@ import android.content.ContentValues;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
+import android.database.sqlite.SQLiteStatement;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -438,5 +439,93 @@ public class WeightDatabase extends SQLiteOpenHelper {
 
         cursor.close();
         return enabled;
+    }
+
+    // Creates the demo account, or reuses it if it already exists, and replaces all of its data:
+    // weights, calories, goal weight and notification setting. Used by DemoDataSeeder. Returns the user ID.
+    //
+    // Everything runs in one transaction. Without it, each of the ~3,200 inserts would be its own
+    // transaction and its own write to storage, taking several seconds. With it, SQLite writes once at
+    // the end, so it finishes almost instantly, and if anything fails nothing is left half-saved.
+    public int replaceDemoAccount(String username, String password, List<WeightEntry> weights,
+                                  List<CalorieEntry> calories, double goalWeight) {
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+
+        try {
+            // Find the demo user, or create it
+            int userId = -1;
+            Cursor cursor = db.rawQuery(
+                    "select " + UserTable.COLUMN_ID + " from " + UserTable.TABLE_NAME +
+                            " where " + UserTable.COLUMN_USERNAME + " = ?",
+                    new String[]{username}
+            );
+            if (cursor.moveToFirst()) {
+                userId = cursor.getInt(0);
+            }
+            cursor.close();
+
+            ContentValues userValues = new ContentValues();
+            userValues.put(UserTable.COLUMN_USERNAME, username);
+            userValues.put(UserTable.COLUMN_PASSWORD, password);
+            if (userId == -1) {
+                userId = (int) db.insertOrThrow(UserTable.TABLE_NAME, null, userValues);
+            } else {
+                // Reset the password in case it was changed, so the documented login always works
+                db.update(UserTable.TABLE_NAME, userValues,
+                        UserTable.COLUMN_ID + " = ?", new String[]{String.valueOf(userId)});
+            }
+
+            // Remove the demo user's old data so it can be replaced with fresh data
+            String[] userArgs = {String.valueOf(userId)};
+            db.delete(WeightTable.TABLE_NAME, WeightTable.COLUMN_USER_ID + " = ?", userArgs);
+            db.delete(CalorieTable.TABLE_NAME, CalorieTable.COLUMN_USER_ID + " = ?", userArgs);
+            db.delete(GoalTable.TABLE_NAME, GoalTable.COLUMN_USER_ID + " = ?", userArgs);
+            db.delete(NotificationTable.TABLE_NAME, NotificationTable.COLUMN_USER_ID + " = ?", userArgs);
+
+            // Insert the new weights and calories. Each INSERT is compiled once and reused with new
+            // values for every row, instead of SQLite parsing the same SQL thousands of times.
+            SQLiteStatement insertWeight = db.compileStatement(
+                    "insert into " + WeightTable.TABLE_NAME + " (" + WeightTable.COLUMN_USER_ID + ", " +
+                            WeightTable.COLUMN_DATE + ", " + WeightTable.COLUMN_WEIGHT + ") values (?, ?, ?)");
+            for (WeightEntry weight : weights) {
+                insertWeight.bindLong(1, userId);
+                insertWeight.bindString(2, weight.getDate());
+                insertWeight.bindDouble(3, weight.getWeight());
+                insertWeight.executeInsert();
+            }
+            insertWeight.close();
+
+            SQLiteStatement insertCalories = db.compileStatement(
+                    "insert into " + CalorieTable.TABLE_NAME + " (" + CalorieTable.COLUMN_USER_ID + ", " +
+                            CalorieTable.COLUMN_DATE + ", " + CalorieTable.COLUMN_CALORIES + ") values (?, ?, ?)");
+            for (CalorieEntry calorie : calories) {
+                insertCalories.bindLong(1, userId);
+                insertCalories.bindString(2, calorie.getDate());
+                insertCalories.bindLong(3, calorie.getCalories());
+                insertCalories.executeInsert();
+            }
+            insertCalories.close();
+
+            // Goal weight
+            ContentValues goalValues = new ContentValues();
+            goalValues.put(GoalTable.COLUMN_USER_ID, userId);
+            goalValues.put(GoalTable.COLUMN_TARGET_WEIGHT, goalWeight);
+            db.insertOrThrow(GoalTable.TABLE_NAME, null, goalValues);
+
+            // Save SMS notifications as off, so logging in goes straight to the main menu
+            // instead of asking for SMS permission first
+            ContentValues notificationValues = new ContentValues();
+            notificationValues.put(NotificationTable.COLUMN_USER_ID, userId);
+            notificationValues.put(NotificationTable.COLUMN_ENABLED, 0);
+            db.insertOrThrow(NotificationTable.TABLE_NAME, null, notificationValues);
+
+            // Mark the transaction as successful; endTransaction() then saves everything at once.
+            // If an exception is thrown before this line, endTransaction() undoes all of the changes.
+            db.setTransactionSuccessful();
+            return userId;
+        } finally {
+            db.endTransaction();
+        }
     }
 }

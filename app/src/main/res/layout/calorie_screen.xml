@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- NestedScrollView (instead of ScrollView) so the calorie log's own scroll area inside it can scroll too -->
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
@@ -70,11 +71,23 @@
 
         </LinearLayout>
 
-        <LinearLayout
-            android:id="@+id/calorieGridContainer"
-            android:orientation="vertical"
+        <!-- Calorie log: one row per calendar week, newest first. The open week also lists its entries.
+             It has its own fixed-height scroll area so a long history doesn't push the inputs off screen. -->
+        <androidx.core.widget.NestedScrollView
+            android:id="@+id/calorieLogScroll"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
+            android:layout_height="360dp"
+            android:background="#FAFAFA"
+            android:fadeScrollbars="false"
+            android:scrollbars="vertical">
+
+            <LinearLayout
+                android:id="@+id/calorieGridContainer"
+                android:orientation="vertical"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+        </androidx.core.widget.NestedScrollView>
 
         <LinearLayout
             android:orientation="vertical"
@@ -126,4 +139,4 @@
 
     </LinearLayout>
 
-</ScrollView>
+</androidx.core.widget.NestedScrollView>
